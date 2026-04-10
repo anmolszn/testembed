@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "600215360784",
+    "project_id": "testembed-2e60c",
+    "storage_bucket": "testembed-2e60c.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:600215360784:android:e53ce9f31fa6fabef58195",
+        "android_client_info": {
+          "package_name": "com.example.testembed_flutter"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCxHFzEkzbXvXEEEyxGolkhT41RHV9cacs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

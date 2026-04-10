@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dart pub:*)",
+      "Bash(where flutter:*)",
+      "WebSearch"
+    ]
+  }
+}

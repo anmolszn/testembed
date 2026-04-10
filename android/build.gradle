@@ -1,0 +1,12 @@
+// Top-level build file — plugin management is handled in settings.gradle.
+
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+tasks.register("clean", Delete) {
+    delete rootProject.buildDir
+}
