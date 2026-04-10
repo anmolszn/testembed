@@ -58,6 +58,18 @@ app.post('/sms/webhook', (req, res) => {
   res.sendStatus(200);
 });
 
+// DEV ONLY — manually verify a token for testing without a real VMN
+// Hit this in browser: /auth/verify-test?token=YOUR_TOKEN
+app.get('/auth/verify-test', (req, res) => {
+  const { token } = req.query;
+  if (!token) return res.status(400).json({ error: 'token required' });
+  const session = getSession(token);
+  if (!session) return res.json({ error: 'session not found or expired' });
+  verifySession(token);
+  console.log(`[test-verify] manually verified token=${token}`);
+  res.json({ ok: true, token });
+});
+
 app.listen(PORT, () => {
   console.log(`SIM binding backend running on http://localhost:${PORT}`);
   console.log(`VMN: ${VMN}`);
