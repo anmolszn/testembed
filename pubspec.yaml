@@ -16,6 +16,7 @@ dependencies:
 
   # Video (web embed)
   webview_flutter: ^4.10.0
+  webview_flutter_wkwebview: ^3.23.1
 
   # SIM verification
   permission_handler: ^11.3.0

@@ -1,6 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import 'package:webview_flutter_wkwebview/webview_flutter_wkwebview.dart';
 
 const String _embedHtml = '''
 <!DOCTYPE html>
@@ -27,7 +28,7 @@ const String _embedHtml = '''
     data-kvideo-id="gcc-1935251d-77e4-49a9-9310-4cc91a5b8c53"
     data-samesite="true"
     data-ar="9:16"
-    data-video-params='{"autoplay":true,"loop":true}'
+    data-video-params='{"autoplay":true,"muted":false,"loop":true,"playsinline":true,"showPlayIconOnMobile":"false"}'
     class="kpoint-embedded-video"
     style="width:320px">
   </div>
@@ -53,7 +54,17 @@ class _CircularVideoPopupState extends State<CircularVideoPopup> {
   @override
   void initState() {
     super.initState();
-    _controller = WebViewController()
+    final PlatformWebViewControllerCreationParams params;
+    if (WebViewPlatform.instance is WebKitWebViewPlatform) {
+      params = WebKitWebViewControllerCreationParams(
+        allowsInlineMediaPlayback: true,
+        mediaTypesRequiringUserAction: const <PlaybackMediaTypes>{},
+      );
+    } else {
+      params = const PlatformWebViewControllerCreationParams();
+    }
+
+    _controller = WebViewController.fromPlatformCreationParams(params)
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setBackgroundColor(Colors.black)
       ..loadHtmlString(_embedHtml, baseUrl: 'https://showcase-qa.zencite.in');

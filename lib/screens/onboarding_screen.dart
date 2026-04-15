@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import 'package:webview_flutter_wkwebview/webview_flutter_wkwebview.dart';
 import '../models/sim_card.dart';
 import '../services/sim_service.dart';
 import '../services/verify_service.dart';
@@ -41,30 +42,45 @@ String _buildVideoHtml(String videoId, {bool loop = true}) {
     data-kvideo-id="$videoId"
     data-samesite="true"
     data-ar="9:16"
-    data-video-params='{"autoplay":true,"muted":true,$loopParam"showPlayIconOnMobile":"false"}'
+    data-video-params='{"autoplay":true,"muted":true,"playsinline":true,$loopParam"showPlayIconOnMobile":"false","showMuteIconOnMobile":"false"}'
     class="kpoint-embedded-video"
     style="width:100vw;height:100vh">
   </div>
   <script src="https://showcase-qa.zencite.in/assets/orca/media/embed/player-silk.js?_=$ts"></script>
   <script>
-    function unmute(){
-      document.querySelectorAll('video').forEach(function(v){
-        if(!v.paused){v.muted=false;}
-        else{v.play().then(function(){v.muted=false;}).catch(function(){});}
+    function hideUnmuteControls(root){
+      if(!root) return;
+      const selectors = [
+        '[aria-label*="mute" i]',
+        '[aria-label*="volume" i]',
+        '[title*="mute" i]',
+        '[title*="volume" i]',
+        '[class*="mute" i]',
+        '[class*="volume" i]',
+        '[id*="mute" i]',
+        '[id*="volume" i]'
+      ];
+      selectors.forEach(function(sel){
+        root.querySelectorAll(sel).forEach(function(el){
+          el.style.display = 'none';
+          el.style.visibility = 'hidden';
+          el.style.opacity = '0';
+          el.style.pointerEvents = 'none';
+        });
       });
-      document.querySelectorAll('iframe').forEach(function(f){
+    }
+
+    function hideAll(){
+      hideUnmuteControls(document);
+      document.querySelectorAll('iframe').forEach(function(frame){
         try{
-          (f.contentDocument||f.contentWindow.document)
-            .querySelectorAll('video').forEach(function(v){
-              if(!v.paused){v.muted=false;}
-              else{v.play().then(function(){v.muted=false;}).catch(function(){});}
-            });
+          hideUnmuteControls(frame.contentDocument || frame.contentWindow.document);
         }catch(e){}
       });
     }
-    setTimeout(unmute,1500);
-    setTimeout(unmute,3000);
-    setTimeout(unmute,5000);
+
+    setInterval(hideAll, 400);
+    setTimeout(hideAll, 100);
   </script>
 </body>
 </html>''';
@@ -115,10 +131,19 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   @override
   void initState() {
     super.initState();
-    _wvc = WebViewController()
+    final PlatformWebViewControllerCreationParams params;
+    if (WebViewPlatform.instance is WebKitWebViewPlatform) {
+      params = WebKitWebViewControllerCreationParams(
+        allowsInlineMediaPlayback: true,
+        mediaTypesRequiringUserAction: const <PlaybackMediaTypes>{},
+      );
+    } else {
+      params = const PlatformWebViewControllerCreationParams();
+    }
+
+    _wvc = WebViewController.fromPlatformCreationParams(params)
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setBackgroundColor(Colors.black)
-      ..setMediaPlaybackRequiresUserGesture(false);
+      ..setBackgroundColor(Colors.black);
     _pageController = PageController();
     _loadPage(0);
   }

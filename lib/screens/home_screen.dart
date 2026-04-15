@@ -1,4 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import '../widgets/circular_video_popup.dart';
@@ -8,7 +9,8 @@ class HomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
+    final firebaseReady = Firebase.apps.isNotEmpty;
+    final user = firebaseReady ? FirebaseAuth.instance.currentUser : null;
 
     return Scaffold(
       appBar: AppBar(
@@ -17,7 +19,7 @@ class HomeScreen extends StatelessWidget {
           IconButton(
             icon: const Icon(Icons.logout),
             tooltip: 'Sign out',
-            onPressed: () => AuthService().signOut(),
+            onPressed: firebaseReady ? () => AuthService().signOut() : null,
           ),
         ],
       ),
@@ -156,8 +158,8 @@ class HomeScreen extends StatelessWidget {
               spacing: 8,
               runSpacing: 8,
               children: [
-                _StatusChip(label: 'Firebase Connected', ok: true),
-                _StatusChip(label: 'Auth Ready', ok: true),
+                _StatusChip(label: 'Firebase Connected', ok: firebaseReady),
+                _StatusChip(label: 'Auth Ready', ok: firebaseReady),
                 _StatusChip(label: 'Video Embed Ready', ok: true),
               ],
             ),
