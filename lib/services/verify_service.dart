@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
 
-const String _baseUrl = 'https://YOUR_APP.onrender.com'; // replace after deploy
+const String _baseUrl = 'https://testembed-1jry.onrender.com';
 
 class StartVerifyResponse {
   final String token;
