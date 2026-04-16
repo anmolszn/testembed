@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:io';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:webview_flutter/webview_flutter.dart';
@@ -121,11 +123,20 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   SimCard? _selectedSim;
   final _phoneCtrl = TextEditingController();
 
+  // Android SIM verification state
   String _verifyStatus = 'idle';
   String? _token;
   int _countdown = 60;
   Timer? _pollTimer;
   Timer? _countdownTimer;
+
+  // iOS Firebase OTP state
+  final _iosPhoneCtrl = TextEditingController();
+  final _iosOtpCtrl = TextEditingController();
+  String? _verificationId;
+  bool _otpSent = false;
+  bool _otpLoading = false;
+  String? _otpError;
 
   // ── WebView setup ────────────────────────────────────────────────────────
   @override
@@ -143,7 +154,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
     _wvc = WebViewController.fromPlatformCreationParams(params)
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setBackgroundColor(Colors.black);
+      ..setBackgroundColor(Colors.black)
+      ..setMediaPlaybackRequiresUserGesture(false);
     _pageController = PageController();
     _loadPage(0);
   }
@@ -163,6 +175,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     _pollTimer?.cancel();
     _countdownTimer?.cancel();
     _phoneCtrl.dispose();
+    _iosPhoneCtrl.dispose();
+    _iosOtpCtrl.dispose();
     super.dispose();
   }
 
@@ -518,8 +532,175 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     );
   }
 
+  // ── iOS Firebase OTP ─────────────────────────────────────────────────────
+  Future<void> _sendOtp() async {
+    final phone = _iosPhoneCtrl.text.trim();
+    if (phone.isEmpty) {
+      setState(() => _otpError = 'Enter your phone number');
+      return;
+    }
+    setState(() { _otpLoading = true; _otpError = null; });
+    await FirebaseAuth.instance.verifyPhoneNumber(
+      phoneNumber: phone.startsWith('+') ? phone : '+91$phone',
+      timeout: const Duration(seconds: 60),
+      verificationCompleted: (PhoneAuthCredential cred) async {
+        // Auto-verification (Android only, won't fire on iOS)
+        await FirebaseAuth.instance.signInWithCredential(cred);
+        if (mounted) Navigator.pushReplacement(
+          context, MaterialPageRoute(builder: (_) => const HomeScreen()));
+      },
+      verificationFailed: (FirebaseAuthException e) {
+        setState(() { _otpLoading = false; _otpError = e.message ?? 'Verification failed'; });
+      },
+      codeSent: (String verificationId, int? resendToken) {
+        setState(() { _verificationId = verificationId; _otpSent = true; _otpLoading = false; });
+      },
+      codeAutoRetrievalTimeout: (_) {},
+    );
+  }
+
+  Future<void> _verifyOtp() async {
+    final code = _iosOtpCtrl.text.trim();
+    if (code.length < 6) {
+      setState(() => _otpError = 'Enter the 6-digit OTP');
+      return;
+    }
+    setState(() { _otpLoading = true; _otpError = null; });
+    try {
+      final cred = PhoneAuthProvider.credential(
+        verificationId: _verificationId!,
+        smsCode: code,
+      );
+      await FirebaseAuth.instance.signInWithCredential(cred);
+      if (mounted) Navigator.pushReplacement(
+        context, MaterialPageRoute(builder: (_) => const HomeScreen()));
+    } on FirebaseAuthException catch (e) {
+      setState(() { _otpLoading = false; _otpError = e.message ?? 'Invalid OTP'; });
+    }
+  }
+
   // ── Page 3 ───────────────────────────────────────────────────────────────
-  Widget _buildPage3() => SingleChildScrollView(
+  Widget _buildPage3() => Platform.isIOS ? _buildPage3Ios() : _buildPage3Android();
+
+  // ── Page 3 iOS — Firebase OTP ─────────────────────────────────────────────
+  Widget _buildPage3Ios() => SingleChildScrollView(
+    padding: const EdgeInsets.symmetric(horizontal: 24),
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      const SizedBox(height: 24),
+      const Text('Verify Your\nNumber',
+          style: TextStyle(color: Colors.white, fontSize: 36,
+              fontWeight: FontWeight.bold, height: 1.2)),
+      const SizedBox(height: 8),
+      Text('We\'ll send a one-time code to your phone number.',
+          style: TextStyle(color: Colors.white.withOpacity(0.7),
+              fontSize: 13, height: 1.5)),
+      const SizedBox(height: 28),
+
+      if (!_otpSent) ...[
+        TextField(
+          controller: _iosPhoneCtrl,
+          keyboardType: TextInputType.phone,
+          style: const TextStyle(color: Colors.white),
+          decoration: InputDecoration(
+            labelText: 'Phone number',
+            labelStyle: const TextStyle(color: Colors.white60),
+            hintText: '+91XXXXXXXXXX',
+            hintStyle: const TextStyle(color: Colors.white30),
+            prefixIcon: const Icon(Icons.phone, color: Colors.white54),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Colors.white30),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Colors.white),
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        SizedBox(
+          width: double.infinity, height: 52,
+          child: ElevatedButton(
+            onPressed: _otpLoading ? null : _sendOtp,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.deepPurpleAccent,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            ),
+            child: _otpLoading
+                ? const SizedBox(width: 20, height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                : const Text('Send OTP',
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600,
+                        color: Colors.white)),
+          ),
+        ),
+      ],
+
+      if (_otpSent) ...[
+        const Text('Enter the 6-digit code sent to your number',
+            style: TextStyle(color: Colors.white70, fontSize: 13)),
+        const SizedBox(height: 16),
+        TextField(
+          controller: _iosOtpCtrl,
+          keyboardType: TextInputType.number,
+          maxLength: 6,
+          style: const TextStyle(color: Colors.white, fontSize: 24,
+              letterSpacing: 8, fontWeight: FontWeight.bold),
+          textAlign: TextAlign.center,
+          decoration: InputDecoration(
+            counterText: '',
+            filled: true, fillColor: Colors.white10,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide.none,
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        SizedBox(
+          width: double.infinity, height: 52,
+          child: ElevatedButton(
+            onPressed: _otpLoading ? null : _verifyOtp,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.deepPurpleAccent,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            ),
+            child: _otpLoading
+                ? const SizedBox(width: 20, height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                : const Text('Verify OTP',
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600,
+                        color: Colors.white)),
+          ),
+        ),
+        TextButton(
+          onPressed: () => setState(() { _otpSent = false; _iosOtpCtrl.clear(); }),
+          child: const Text('Change number',
+              style: TextStyle(color: Colors.white38, fontSize: 13)),
+        ),
+      ],
+
+      if (_otpError != null) ...[
+        const SizedBox(height: 12),
+        Text(_otpError!,
+            style: const TextStyle(color: Colors.redAccent, fontSize: 13)),
+      ],
+
+      const SizedBox(height: 32),
+      Center(
+        child: TextButton(
+          onPressed: () => Navigator.pushReplacement(
+            context, MaterialPageRoute(builder: (_) => const HomeScreen())),
+          child: const Text('Skip for now',
+              style: TextStyle(color: Colors.white38, fontSize: 13)),
+        ),
+      ),
+      const SizedBox(height: 24),
+    ]),
+  );
+
+  // ── Page 3 Android — SIM binding ──────────────────────────────────────────
+  Widget _buildPage3Android() => SingleChildScrollView(
     padding: const EdgeInsets.symmetric(horizontal: 24),
     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       const SizedBox(height: 24),
